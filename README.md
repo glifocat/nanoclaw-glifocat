@@ -1,5 +1,9 @@
 # nanoclaw-glifocat
 
+[![Upstream](https://img.shields.io/badge/upstream-qwibitai%2Fnanoclaw-blue)](https://github.com/qwibitai/nanoclaw)
+[![Docs](https://img.shields.io/badge/docs-nanoclaw.dev-green)](https://docs.nanoclaw.dev)
+[![Open PRs](https://img.shields.io/github/issues-pr/qwibitai/nanoclaw?label=upstream%20PRs&logo=github)](https://github.com/qwibitai/nanoclaw/pulls?q=author%3Aglifocat)
+
 Personal [NanoClaw](https://github.com/qwibitai/nanoclaw) fork — customizations, upstream contributions and experimentation.
 
 ## About
