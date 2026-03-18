@@ -469,6 +469,7 @@ async function main(): Promise<void> {
 
   try {
     const stdinData = await readStdin();
+    process.stdin.destroy(); // No longer needed; prevents dangling handle
     containerInput = JSON.parse(stdinData);
     try { fs.unlinkSync('/tmp/input.json'); } catch { /* may not exist */ }
     log(`Received input for group: ${containerInput.groupFolder}`);
@@ -553,6 +554,12 @@ async function main(): Promise<void> {
     });
     process.exit(1);
   }
+
+  // Force-exit after the query loop ends cleanly. Without this, the MCP
+  // child process (spawned by the SDK) keeps the event loop alive
+  // indefinitely. The host's container timeout eventually sends SIGKILL,
+  // producing a spurious exit code 137.
+  process.exit(0);
 }
 
 main();
