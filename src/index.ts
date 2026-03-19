@@ -60,6 +60,9 @@ import {
 import { startSchedulerLoop } from './task-scheduler.js';
 import { Channel, NewMessage, RegisteredGroup } from './types.js';
 import { logger } from './logger.js';
+import express from 'express';
+import cors from 'cors';
+import { createDashboardRouter, setDashboardDeps } from './dashboard-api.js';
 
 // Re-export for backwards compatibility during refactor
 export { escapeXml, formatMessages } from './router.js';
@@ -635,6 +638,43 @@ async function main(): Promise<void> {
   });
   queue.setProcessMessagesFn(processGroupMessages);
   recoverPendingMessages();
+
+  // Dashboard API — serves on port 3000
+  const DASHBOARD_PORT = parseInt(process.env.DASHBOARD_PORT || '3000', 10);
+
+  // Guard: prevent port collision with credential proxy
+  if (DASHBOARD_PORT === CREDENTIAL_PROXY_PORT) {
+    logger.fatal({ DASHBOARD_PORT, CREDENTIAL_PROXY_PORT }, 'Dashboard and credential proxy ports conflict');
+    process.exit(1);
+  }
+
+  const app = express();
+  app.use(cors()); // TODO: restrict origin for production if exposed beyond LAN
+
+  // Serve dashboard static files if built
+  const dashboardDistPath = path.join(process.cwd(), 'dashboard', 'dist');
+  if (fs.existsSync(dashboardDistPath)) {
+    app.use(express.static(dashboardDistPath));
+  }
+
+  app.use(createDashboardRouter());
+
+  // API 404 handler — must come BEFORE SPA fallback to avoid serving HTML for bad API paths
+  app.use('/api/*path', (_req: express.Request, res: express.Response) => res.status(404).json({ error: 'Not found' }));
+
+  // SPA fallback — serve index.html for client-side routes
+  if (fs.existsSync(dashboardDistPath)) {
+    app.get('*', (_req: express.Request, res: express.Response) => {
+      res.sendFile(path.join(dashboardDistPath, 'index.html'));
+    });
+  }
+
+  setDashboardDeps(queue, channels);
+
+  app.listen(DASHBOARD_PORT, '0.0.0.0', () => {
+    logger.info({ port: DASHBOARD_PORT }, 'Dashboard API listening');
+  });
+
   startMessageLoop().catch((err) => {
     logger.fatal({ err }, 'Message loop crashed unexpectedly');
     process.exit(1);
