@@ -344,6 +344,26 @@ export class GroupQueue {
     }
   }
 
+  getStatus(): Array<{
+    jid: string;
+    active: boolean;
+    containerName: string | null;
+    pendingMessages: boolean;
+    pendingTasks: number;
+  }> {
+    const result = [];
+    for (const [jid, state] of this.groups) {
+      result.push({
+        jid,
+        active: state.active,
+        containerName: state.containerName,
+        pendingMessages: state.pendingMessages,
+        pendingTasks: state.pendingTasks.length,
+      });
+    }
+    return result;
+  }
+
   async shutdown(_gracePeriodMs: number): Promise<void> {
     this.shuttingDown = true;
 

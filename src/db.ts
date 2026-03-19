@@ -14,6 +14,10 @@ import {
 
 let db: Database.Database;
 
+export function getDb(): Database.Database {
+  return db;
+}
+
 function createSchema(database: Database.Database): void {
   database.exec(`
     CREATE TABLE IF NOT EXISTS chats (
