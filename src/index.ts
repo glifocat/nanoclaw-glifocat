@@ -61,6 +61,7 @@ import {
   loadSenderAllowlist,
   shouldDropMessage,
 } from './sender-allowlist.js';
+import { checkRemoteMounts } from './remote-mounts.js';
 import { startSchedulerLoop } from './task-scheduler.js';
 import { Channel, NewMessage, RegisteredGroup } from './types.js';
 import { logger } from './logger.js';
@@ -410,7 +411,9 @@ async function runAgent(
       const isStaleSession =
         sessionId &&
         output.error &&
-        /no conversation found|ENOENT.*\.jsonl|session.*not found/i.test(output.error);
+        /no conversation found|ENOENT.*\.jsonl|session.*not found/i.test(
+          output.error,
+        );
 
       if (isStaleSession) {
         logger.warn(
@@ -569,6 +572,19 @@ async function main(): Promise<void> {
   ensureContainerSystemRunning();
   initDatabase();
   logger.info('Database initialized');
+
+  // Check remote storage mounts
+  const mountStatus = checkRemoteMounts();
+  for (const [name, active] of mountStatus) {
+    if (!active) {
+      logger.warn(
+        `Remote mount "${name}" is not active - groups using it will have limited access`,
+      );
+    } else {
+      logger.info(`Remote mount "${name}" is active`);
+    }
+  }
+
   loadState();
 
   // Ensure OneCLI agents exist for all registered groups.
