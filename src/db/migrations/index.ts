@@ -8,6 +8,7 @@ import { migration004 } from './004-agent-destinations.js';
 import { migration005 } from './005-pending-credentials.js';
 import { migration007 } from './007-pending-approvals-title-options.js';
 import { migration008 } from './008-dropped-messages.js';
+import { migration009 } from './009-user-level-privilege-model-backfill.js';
 
 export interface Migration {
   version: number;
@@ -15,7 +16,16 @@ export interface Migration {
   up: (db: Database.Database) => void;
 }
 
-const migrations: Migration[] = [migration001, migration002, migration003, migration004, migration005, migration007, migration008];
+const migrations: Migration[] = [
+  migration001,
+  migration002,
+  migration003,
+  migration004,
+  migration005,
+  migration007,
+  migration008,
+  migration009,
+];
 
 export function runMigrations(db: Database.Database): void {
   db.exec(`
