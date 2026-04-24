@@ -1,5 +1,11 @@
 # NanoClaw Specification
 
+> Historical note: this document describes an older NanoClaw architecture and
+> should not be used as the source of truth for current `main`. For current
+> runtime behavior, start with `docs/build-and-runtime.md`, `docs/db.md`,
+> `docs/db-session.md`, `docs/setup-flow.md`, and the active code under
+> `src/`, `src/db/`, and `container/agent-runner/src/`.
+
 A personal Claude assistant with multi-channel support, persistent memory per conversation, scheduled tasks, and container-isolated agent execution.
 
 ---

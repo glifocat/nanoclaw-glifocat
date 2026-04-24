@@ -1,5 +1,10 @@
 # NanoClaw API Details
 
+> Historical note: this document contains implementation details for an older
+> architecture draft and should not be treated as current API reference for
+> `main`. Verify behavior against the active code and newer docs before using
+> any interface or schema names from this file.
+
 Implementation-level details for the architecture. See [architecture.md](architecture.md) for the high-level design.
 
 ## Channel Adapter Interface
