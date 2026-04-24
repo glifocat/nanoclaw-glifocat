@@ -1,6 +1,6 @@
 # Maintainer Documentation Audit
 
-Last updated: 2026-04-23
+Last updated: 2026-04-24
 
 This document is a code-grounded audit of the current repository documentation.
 
@@ -147,6 +147,15 @@ newer concepts such as:
 This is the most important code/doc mismatch because it affects maintainer
 understanding of what setup is actually expected to produce.
 
+Suggested implementation mapping, when this is fixed in code:
+
+- explicit `trigger` → `engage_mode='pattern'`, `engage_pattern=<trigger>`
+- no trigger required → `engage_mode='pattern'`, `engage_pattern='.'`
+- trigger required but no explicit pattern → `engage_mode='mention'`,
+  `engage_pattern=NULL`
+- `response_scope='all'` equivalent → `sender_scope='all'`
+- no old-schema equivalent → `ignored_message_policy='drop'`
+
 ### 2. Some docs still describe `messages.db` and `registered_groups`
 
 That model is no longer the authoritative one for trunk runtime behavior.
@@ -177,6 +186,84 @@ They should not currently be treated as accurate operator references for the
 storage or group registration model.
 
 ## Documentation Classification
+
+## `docs/` Folder Focused Audit
+
+This section is a file-by-file audit of the Markdown files directly under
+`docs/`.
+
+Local link check result:
+
+- no missing local Markdown/file links were found in `docs/*.md`
+
+### Current or Mostly Current
+
+- `docs/build-and-runtime.md` — current, concise runtime reference for the Node
+  host, Bun container, lockfiles, and build invariants.
+- `docs/db.md` — current high-level DB map; good entry point for central vs
+  session DB ownership.
+- `docs/db-session.md` — current session DB reference for `inbound.db`,
+  `outbound.db`, seq parity, and cross-mount SQLite rules.
+- `docs/db-central.md` — mostly current after refreshing
+  `messaging_group_agents`; keep aligned with `src/db/schema.ts` and migrations.
+- `docs/setup-flow.md` — current setup-output contract; useful for maintaining
+  `setup/auto.ts` and step logging.
+- `docs/isolation-model.md` — mostly current after refreshing the wiring entity
+  snippet; good user-facing model for channel/agent isolation.
+- `docs/skills-as-branches.md` — broadly current for the branch-based extension
+  model; should be read as extension-system docs, not trunk runtime behavior.
+- `docs/BRANCH-FORK-MAINTENANCE.md` — current enough as process guidance for
+  channel forks and skill branches.
+- `docs/APPLE-CONTAINER-NETWORKING.md` — focused operational note; no obvious
+  current-runtime contradiction found.
+- `docs/ollama.md` — feature guidance; appears coherent with the container
+  config direction, but should be checked against any future provider changes.
+
+### Mixed or Needs Targeted Repair
+
+- `docs/architecture-diagram.md` — system flow is mostly recognizable, but the
+  ER diagram still shows old fields such as `container_config` on
+  `agent_groups` and `trigger_rules` on `messaging_group_agents`. Refresh the
+  diagram from `src/db/schema.ts` or mark it partially stale.
+- `docs/SECURITY.md` — important but stale in architecture-specific sections.
+  It still describes `main` vs non-main groups, IPC authorization, `store/`,
+  and direct DB access patterns that do not match current user-role,
+  session-DB, and OneCLI behavior.
+- `docs/docker-sandboxes.md` — useful historical/operational guide, but setup
+  examples still use old registration flags such as `--jid` and `--is-main`
+  while `setup/register.ts` accepts `--platform-id` and no main-group flag.
+  Treat command snippets as needing validation before use.
+- `docs/api-details.md` — now marked historical, but still useful for Chat SDK
+  bridge concepts. Do not use its older DB/API snippets as current source of
+  truth.
+- `docs/agent-runner-details.md` — now marked historical. Useful for old design
+  context, but current behavior should be checked against
+  `container/agent-runner/src/`.
+- `docs/architecture.md` — now marked historical. It contains some current
+  sections mixed with stale schema snippets and old IPC examples; not safe as a
+  sole architecture reference.
+- `docs/README.md` — points users to the external docs site and maps a few local
+  files to site pages. It is fine as an index, but it does not warn that several
+  local files are historical or mixed.
+- `docs/SDK_DEEP_DIVE.md` — focused SDK research note. It is not a NanoClaw
+  runtime architecture reference; its SDK-version assumptions should be
+  rechecked before using it for current SDK behavior.
+
+### Historical or Design-Intent Documents
+
+- `docs/SPEC.md` — historical. It still describes `messages.db`,
+  `registered_groups`, IPC watcher flows, and fixed `com.nanoclaw` launchd
+  service names.
+- `docs/REQUIREMENTS.md` — design-history document. It still describes the old
+  main-channel privilege model, `register_group` IPC flow, and older group
+  storage assumptions.
+
+### Session / Audit Artifacts
+
+- `docs/MAINTAINER-DOC-AUDIT.md` — this audit. Keep it as the maintainer-facing
+  source for doc trust classification.
+- `docs/SESSION-HANDOFF.md` — local session handoff. Useful for continuing this
+  cleanup, but not intended as stable product documentation.
 
 ### Authoritative or Mostly Aligned
 
