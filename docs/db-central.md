@@ -4,6 +4,10 @@ Complete reference for `data/v2.db`, the host-owned admin-plane database. Start 
 
 Access layer: `src/db/`. Authoritative schema reference: `src/db/schema.ts` (comments only — actual creation runs via migrations in `src/db/migrations/`).
 
+> Maintainer note: this reference follows the current v2 schema. Historical
+> migrations still mention `trigger_rules` and `response_scope`, but current
+> runtime code uses the explicit engagement fields documented below.
+
 ---
 
 ## 1. Tables
@@ -52,20 +56,25 @@ Wiring: which agent group handles which messaging group. Many-to-many — the sa
 
 ```sql
 CREATE TABLE messaging_group_agents (
-  id                 TEXT PRIMARY KEY,
-  messaging_group_id TEXT NOT NULL REFERENCES messaging_groups(id),
-  agent_group_id     TEXT NOT NULL REFERENCES agent_groups(id),
-  trigger_rules      TEXT,
-  response_scope     TEXT DEFAULT 'all',
-  session_mode       TEXT DEFAULT 'shared',
-  priority           INTEGER DEFAULT 0,
-  created_at         TEXT NOT NULL,
+  id                     TEXT PRIMARY KEY,
+  messaging_group_id     TEXT NOT NULL REFERENCES messaging_groups(id),
+  agent_group_id         TEXT NOT NULL REFERENCES agent_groups(id),
+  engage_mode            TEXT NOT NULL DEFAULT 'mention',
+  engage_pattern         TEXT,
+  sender_scope           TEXT NOT NULL DEFAULT 'all',
+  ignored_message_policy TEXT NOT NULL DEFAULT 'drop',
+  session_mode           TEXT DEFAULT 'shared',
+  priority               INTEGER DEFAULT 0,
+  created_at             TEXT NOT NULL,
   UNIQUE(messaging_group_id, agent_group_id)
 );
 ```
 
 - `session_mode`: `shared` (one session per channel), `per-thread` (one per thread), `agent-shared` (one per agent group across all channels).
-- `trigger_rules`: JSON; e.g. regex for native channels.
+- `engage_mode`: `pattern`, `mention`, or `mention-sticky`.
+- `engage_pattern`: regex source used when `engage_mode='pattern'`; `'.'` means match every message.
+- `sender_scope`: `all` or `known`.
+- `ignored_message_policy`: `drop` or `accumulate`.
 - **Side effect:** creating a wiring must also populate `agent_destinations` — don't mutate one without the other (see §1.10).
 
 ### 1.4 `users`

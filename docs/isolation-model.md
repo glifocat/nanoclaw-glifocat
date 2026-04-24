@@ -2,6 +2,10 @@
 
 NanoClaw decouples messaging channels from agent groups. When you connect a channel (Discord, Telegram, Slack, GitHub, etc.), you decide how it relates to your existing agents. There are three isolation levels.
 
+> Maintainer note: current wiring uses `engage_mode`, `engage_pattern`,
+> `sender_scope`, and `ignored_message_policy`. Older `trigger_rules`
+> terminology should be read as historical.
+
 ## The Three Levels
 
 ### 1. Shared Session
@@ -80,7 +84,14 @@ agent_groups (workspace, memory, CLAUDE.md, personality)
     ↕ many-to-many
 messaging_groups (a specific channel/chat/group on a platform)
     via
-messaging_group_agents (session_mode, trigger_rules, priority)
+messaging_group_agents (
+  engage_mode,
+  engage_pattern,
+  sender_scope,
+  ignored_message_policy,
+  session_mode,
+  priority
+)
 ```
 
 - **Shared session:** multiple messaging_groups → same agent_group, `session_mode = 'agent-shared'`
