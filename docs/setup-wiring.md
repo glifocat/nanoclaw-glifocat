@@ -2,6 +2,11 @@
 
 Last updated: 2026-04-09
 
+> Maintainer note: this document is partially stale. The runtime wiring model
+> now uses `engage_mode`, `engage_pattern`, `sender_scope`, and
+> `ignored_message_policy` on `messaging_group_agents`; older references to
+> `trigger_rules` and `response_scope` describe pre-migration terminology.
+
 ## What's Done
 
 ### Two-DB Split (session DB write isolation)
@@ -69,7 +74,16 @@ agent_groups (id, name, folder, agent_provider, container_config)
     ↕ many-to-many
 messaging_groups (id, channel_type, platform_id, name, is_group, unknown_sender_policy)
     via
-messaging_group_agents (messaging_group_id, agent_group_id, trigger_rules, session_mode, priority)
+messaging_group_agents (
+  messaging_group_id,
+  agent_group_id,
+  engage_mode,
+  engage_pattern,
+  sender_scope,
+  ignored_message_policy,
+  session_mode,
+  priority
+)
 
 users (id, kind, display_name)          -- namespaced as "<channel>:<handle>"
 user_roles (user_id, role, agent_group_id)    -- owner / admin (global or scoped)
@@ -99,3 +113,15 @@ Channel adapter → routeInbound() → resolve messaging_group → resolve agent
 | `setup/register.ts` | Creates entities (agent_group, messaging_group, wiring) |
 | `setup/verify.ts` | Checks central DB for registered groups |
 | `container/agent-runner/src/db/connection.ts` | Two-DB connection layer (inbound read-only, outbound read-write) |
+
+### Wiring engagement fields
+
+`messaging_group_agents` uses four explicit engagement/access fields:
+
+- `engage_mode`: `pattern`, `mention`, or `mention-sticky`
+- `engage_pattern`: regex source used when `engage_mode='pattern'`; `'.'`
+  means match every message
+- `sender_scope`: `all` or `known`
+- `ignored_message_policy`: `drop` or `accumulate`
+
+These replace the old `trigger_rules` JSON and `response_scope` enum.
