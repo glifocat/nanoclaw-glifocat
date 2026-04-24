@@ -1,5 +1,10 @@
 # NanoClaw Agent-Runner Details
 
+> Historical note: this document was written for an older architecture draft
+> and is not the authoritative description of the current container runner on
+> `main`. For current behavior, check `container/agent-runner/src/`,
+> `docs/build-and-runtime.md`, and `docs/db-session.md`.
+
 Implementation-level details for the agent-runner inside the container. See [architecture.md](architecture.md) for the high-level design.
 
 ## Separation of Concerns

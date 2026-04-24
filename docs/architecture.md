@@ -1,5 +1,11 @@
 # NanoClaw Architecture (Draft)
 
+> Historical note: this draft reflects an older architecture model and is not
+> authoritative for current `main`. Current runtime behavior is host-owned
+> routing with a central `data/v2.db` plus per-session `inbound.db` and
+> `outbound.db`. Prefer `docs/build-and-runtime.md`, `docs/db.md`,
+> `docs/db-session.md`, and the active code for maintainer work.
+
 ## Core Idea
 
 Each agent session has a mounted SQLite DB. The DB is the one and only IO mechanism between host and container. No IPC files, no stdin piping. Two tables: messages_in (host → agent-runner) and messages_out (agent-runner → host). Everything is a message.
