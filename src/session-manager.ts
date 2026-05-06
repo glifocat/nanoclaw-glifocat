@@ -277,7 +277,15 @@ function extractAttachmentFiles(
 
   let changed = false;
   for (const att of attachments) {
-    if (typeof att.data !== 'string') continue;
+    // Two ingest modes:
+    //   - inline base64 in `att.data` (e.g. Chat SDK adapters)
+    //   - pre-staged file at `<DATA_DIR>/<att.localPath>` (e.g. native
+    //     WhatsApp adapter, which downloads media to a host staging dir)
+    // Anything already living under `inbox/` has been ingested already.
+    const hasBase64 = typeof att.data === 'string';
+    const stagedPath =
+      !hasBase64 && typeof att.localPath === 'string' && !att.localPath.startsWith('inbox/') ? att.localPath : null;
+    if (!hasBase64 && !stagedPath) continue;
 
     const rawName = deriveAttachmentName(att);
     const filename = isSafeAttachmentName(rawName) ? rawName : `attachment-${Date.now()}`;
@@ -318,10 +326,31 @@ function extractAttachmentFiles(
 
     const filePath = path.join(inboxDir, filename);
     try {
-      // wx = exclusive create. Refuses to follow a pre existing symlink or
-      // overwrite any existing file. The host expects to be the sole writer
-      // of these attachments.
-      fs.writeFileSync(filePath, Buffer.from(att.data as string, 'base64'), { flag: 'wx' });
+      if (hasBase64) {
+        // wx = exclusive create. Refuses to follow a pre existing symlink or
+        // overwrite any existing file. The host expects to be the sole writer
+        // of these attachments.
+        fs.writeFileSync(filePath, Buffer.from(att.data as string, 'base64'), { flag: 'wx' });
+      } else {
+        // File-based: copy from staging into the session inbox. Resolve the
+        // source via realpath and confirm it lives under DATA_DIR — refuses
+        // a `localPath` that escapes (e.g. via symlink or `..` segments)
+        // even though the adapter is supposed to sanitize already.
+        const srcAbs = path.join(DATA_DIR, stagedPath as string);
+        let realSrc: string;
+        try {
+          realSrc = fs.realpathSync(srcAbs);
+        } catch (err) {
+          log.warn('Staged attachment missing or unresolvable', { messageId, srcAbs, err });
+          continue;
+        }
+        if (!isPathInside(fs.realpathSync(DATA_DIR), realSrc)) {
+          log.warn('Staged attachment escaped DATA_DIR', { messageId, srcAbs, realSrc });
+          continue;
+        }
+        // COPYFILE_EXCL = exclusive — same semantics as wx.
+        fs.copyFileSync(realSrc, filePath, fs.constants.COPYFILE_EXCL);
+      }
     } catch (err: unknown) {
       const e = err as NodeJS.ErrnoException;
       if (e.code === 'EEXIST') {
@@ -336,7 +365,7 @@ function extractAttachmentFiles(
 
     att.name = filename;
     att.localPath = `inbox/${messageId}/${filename}`;
-    delete att.data;
+    if (hasBase64) delete att.data;
     changed = true;
     log.debug('Saved attachment to inbox', { messageId, filename, size: att.size });
   }
