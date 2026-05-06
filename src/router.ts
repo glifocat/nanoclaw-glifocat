@@ -123,6 +123,24 @@ export function setMessageInterceptor(fn: MessageInterceptorFn): void {
 }
 
 /**
+ * Pre-route preprocessor hook. Runs after the interceptor and before agent
+ * resolution. Allowed to mutate `event.message.content` in place — used by
+ * modules that enrich the payload (e.g. transcription expanding a voice-note
+ * attachment into text). Errors are swallowed so a failing preprocessor
+ * never blocks routing.
+ */
+export type MessagePreprocessorFn = (event: InboundEvent) => Promise<void>;
+
+let messagePreprocessor: MessagePreprocessorFn | null = null;
+
+export function setMessagePreprocessor(fn: MessagePreprocessorFn): void {
+  if (messagePreprocessor) {
+    log.warn('Message preprocessor overwritten');
+  }
+  messagePreprocessor = fn;
+}
+
+/**
  * Channel-registration hook. Runs when the router sees a mention/DM on a
  * messaging group that has no wirings AND hasn't been denied. The hook is
  * expected to escalate to an owner (card, etc.) and arrange for future
@@ -159,6 +177,15 @@ export async function routeInbound(event: InboundEvent): Promise<void> {
   // Pre-route interceptor — lets modules consume messages before any routing
   // (e.g. free-text replies during multi-step approval flows).
   if (messageInterceptor && (await messageInterceptor(event))) return;
+
+  // MODULE-HOOK:preprocessor — mutate event.message.content (e.g. transcription).
+  if (messagePreprocessor) {
+    try {
+      await messagePreprocessor(event);
+    } catch (err) {
+      log.warn('Message preprocessor threw', { err });
+    }
+  }
 
   // 0. Apply the adapter's thread policy. Non-threaded adapters (Telegram,
   //    WhatsApp, iMessage, email) collapse threads to the channel.
