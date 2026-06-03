@@ -6,6 +6,8 @@
  * evaluates on macOS (which dispatches to setupLaunchd) or on Linux/WSL
  * installs that fall back to nohup.
  *
+ * callers must gate on Linux; safe-but-wasteful elsewhere
+ *
  * See issue #2680: enabling linger on per-home-encrypted systems
  * (ecryptfs / fscrypt / gocryptfs) causes the user systemd manager to
  * come up at boot before PAM has decrypted ~/.config/systemd/user/, so it
