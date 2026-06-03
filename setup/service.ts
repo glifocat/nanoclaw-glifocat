@@ -13,16 +13,9 @@ import path from 'path';
 import { log } from '../src/log.js';
 import { getLaunchdLabel, getSystemdUnit } from '../src/install-slug.js';
 import { writeUpgradeState } from '../src/upgrade-state.js';
+import type { LingerResult } from './linger.js';
 import { cleanupUnhealthyPeers } from './peer-cleanup.js';
-import {
-  commandExists,
-  detectEncryptedHome,
-  EncryptedHomeDetection,
-  getPlatform,
-  getNodePath,
-  getServiceManager,
-  isRoot,
-} from './platform.js';
+import { commandExists, getPlatform, getNodePath, getServiceManager, isRoot } from './platform.js';
 import { emitStatus } from './status.js';
 
 export async function run(_args: string[]): Promise<void> {
@@ -364,9 +357,12 @@ WantedBy=${runningAsRoot ? 'multi-user.target' : 'default.target'}`;
 
   // Enable lingering so the user service survives SSH logout.
   // Without linger, systemd terminates all user processes when the last session closes.
+  // linger.ts is dynamic-imported so its body (and the encrypted-home detection
+  // helpers it pulls in) never evaluates on macOS or on the nohup fallback path.
   let lingerResult: LingerResult = { lingerEnabled: false };
   if (!runningAsRoot) {
-    lingerResult = manageUserLinger();
+    const { manageUserLinger } = await import('./linger.js');
+    lingerResult = manageUserLinger(unitName);
   }
 
   // Enable and start
@@ -417,63 +413,6 @@ WantedBy=${runningAsRoot ? 'multi-user.target' : 'default.target'}`;
     STATUS: 'success',
     LOG: 'logs/setup.log',
   });
-}
-
-export interface LingerResult {
-  lingerEnabled: boolean;
-  encryptedHome?: EncryptedHomeDetection;
-}
-
-/**
- * Manage user-systemd lingering.
- *
- * Skipped silently on per-home-encrypted systems (ecryptfs / fscrypt /
- * gocryptfs). On those, linger causes the user manager to come up at boot
- * before PAM has decrypted ~/.config/systemd/user/, so it starts with an
- * empty unit table and nanoclaw never launches. See issue #2680.
- *
- * TODO(#2680): item 4 of the suggested fix (a PAM / login-hook self-heal
- * that runs `systemctl --user start nanoclaw` on first login) is not
- * implemented here. Tracked in the issue.
- *
- * Exported (along with `detect` / `exec` overrides) so service.test.ts can
- * exercise the skip path without shelling out.
- */
-export function manageUserLinger(
-  detect: () => EncryptedHomeDetection = detectEncryptedHome,
-  exec: (cmd: string) => void = (cmd: string) =>
-    void execSync(cmd, { stdio: 'ignore' }),
-): LingerResult {
-  const detection = detect();
-  if (detection.detected) {
-    log.warn(
-      [
-        `Per-home encryption detected (${detection.type}); skipping`,
-        '`loginctl enable-linger`. With linger enabled on a per-home-encrypted',
-        'system, the user systemd manager starts at boot before PAM has',
-        'decrypted ~/.config/systemd/user/, so it comes up with an empty unit',
-        'table and nanoclaw never launches. Without linger, nanoclaw will',
-        'start when you log in after each reboot. If the service is not',
-        'running after login, run: systemctl --user daemon-reload &&',
-        'systemctl --user start nanoclaw. See',
-        'https://github.com/nanocoai/nanoclaw/issues/2680.',
-      ].join(' '),
-      { type: detection.type, signal: detection.signal },
-    );
-    return { lingerEnabled: false, encryptedHome: detection };
-  }
-
-  try {
-    exec('loginctl enable-linger');
-    log.info('Enabled loginctl linger for current user');
-    return { lingerEnabled: true };
-  } catch (err) {
-    log.warn(
-      'loginctl enable-linger failed — service may stop on SSH logout',
-      { err },
-    );
-    return { lingerEnabled: false };
-  }
 }
 
 // Single quotes keep checkout paths literal in the generated shell script.

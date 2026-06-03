@@ -4,18 +4,9 @@
 import { execSync } from 'child_process';
 import fs from 'fs';
 import os from 'os';
-import path from 'path';
 
 export type Platform = 'macos' | 'linux' | 'unknown';
 export type ServiceManager = 'launchd' | 'systemd' | 'none';
-export type EncryptedHomeType = 'ecryptfs' | 'fscrypt' | 'gocryptfs';
-
-export interface EncryptedHomeDetection {
-  detected: boolean;
-  type?: EncryptedHomeType;
-  /** Human-readable signal that triggered detection (used in warnings/logs). */
-  signal?: string;
-}
 
 export function getPlatform(): Platform {
   const platform = os.platform();
@@ -138,94 +129,4 @@ export function getNodeMajorVersion(): number | null {
   if (!version) return null;
   const major = parseInt(version.split('.')[0], 10);
   return isNaN(major) ? null : major;
-}
-
-/**
- * Detect whether $HOME is on per-user-encrypted storage that only gets
- * decrypted at PAM login (ecryptfs, fscrypt, gocryptfs).
- *
- * Block-device encryption (LUKS / dm-crypt) is intentionally NOT a trigger:
- * those volumes are decrypted before userspace and don't break user systemd
- * at boot. See issue #2680 for the failure mode this detection guards.
- *
- * fscrypt is per-directory with no mount entry and no universal marker file,
- * so we rely on the `fscrypt` CLI when present. If it isn't installed, we
- * skip fscrypt detection; there is no safe lightweight probe without it.
- */
-export function detectEncryptedHome(
-  homeDir: string = os.homedir(),
-): EncryptedHomeDetection {
-  if (getPlatform() !== 'linux') return { detected: false };
-
-  // findmnt: catches ecryptfs and fuse.gocryptfs cleanly via the mount table.
-  try {
-    const fstype = execSync(
-      `findmnt -n -T ${JSON.stringify(homeDir)} -o FSTYPE`,
-      { stdio: ['ignore', 'pipe', 'ignore'], encoding: 'utf-8' },
-    ).trim();
-    if (fstype === 'ecryptfs') {
-      return {
-        detected: true,
-        type: 'ecryptfs',
-        signal: `findmnt reports FSTYPE=ecryptfs for ${homeDir}`,
-      };
-    }
-    if (fstype === 'fuse.gocryptfs') {
-      return {
-        detected: true,
-        type: 'gocryptfs',
-        signal: `findmnt reports FSTYPE=fuse.gocryptfs for ${homeDir}`,
-      };
-    }
-  } catch {
-    // findmnt missing or no mount row; fall through to other probes.
-  }
-
-  // ecryptfs marker directories: present on the classic Ubuntu encrypted-home
-  // setup even when findmnt is unavailable.
-  try {
-    if (fs.existsSync(path.join(homeDir, '.ecryptfs'))) {
-      return {
-        detected: true,
-        type: 'ecryptfs',
-        signal: `${homeDir}/.ecryptfs exists`,
-      };
-    }
-    if (fs.existsSync(path.join(homeDir, '.Private'))) {
-      return {
-        detected: true,
-        type: 'ecryptfs',
-        signal: `${homeDir}/.Private exists`,
-      };
-    }
-  } catch {
-    // fs probe failed; ignore.
-  }
-
-  // fscrypt: only reliable detection is the fscrypt CLI. The issue body
-  // specifically warns against marker-file heuristics, and rolling a raw
-  // FS_IOC_GET_ENCRYPTION_POLICY ioctl from Node isn't trivial.
-  if (commandExists('fscrypt')) {
-    try {
-      const out = execSync(`fscrypt status ${JSON.stringify(homeDir)}`, {
-        stdio: ['ignore', 'pipe', 'pipe'],
-        encoding: 'utf-8',
-      });
-      // `fscrypt status DIR` exits 0 on encrypted dirs and prints lines like
-      // "Policy: ..." / "Unlocked: Yes". Match a couple of fscrypt-specific
-      // tokens rather than the generic word "encrypted" to avoid false
-      // positives on help text.
-      if (/policy\s*:/i.test(out) || /unlocked\s*:/i.test(out)) {
-        return {
-          detected: true,
-          type: 'fscrypt',
-          signal: `fscrypt status reports an encryption policy on ${homeDir}`,
-        };
-      }
-    } catch {
-      // Non-zero exit means no fscrypt policy on this dir; ignore.
-    }
-  }
-
-  return { detected: false };
 }

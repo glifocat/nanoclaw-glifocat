@@ -2,8 +2,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 import { log } from '../src/log.js';
 import { getLaunchdLabel } from '../src/install-slug.js';
-import { manageUserLinger } from './service.js';
-import type { EncryptedHomeDetection } from './platform.js';
+import { manageUserLinger } from './linger.js';
+import type { EncryptedHomeDetection } from './linger.js';
 
 /**
  * Tests for service configuration generation.
@@ -135,6 +135,13 @@ describe('manageUserLinger (encrypted-home guard, issue #2680)', () => {
     infoSpy.mockRestore();
   });
 
+  // Realistic per-install unit name (matches getSystemdUnit(projectRoot)
+  // format `nanoclaw-v2-<8-hex-slug>`). The warning must interpolate this
+  // rather than the static word "nanoclaw" — copy-pasting the recovery
+  // command with the wrong unit name leaves users stuck on
+  // `Unit nanoclaw.service not found.` See issue #2680.
+  const testUnitName = 'nanoclaw-v2-abc123';
+
   it('skips loginctl enable-linger when an encrypted home is detected', () => {
     const detected: EncryptedHomeDetection = {
       detected: true,
@@ -143,7 +150,7 @@ describe('manageUserLinger (encrypted-home guard, issue #2680)', () => {
     };
     const exec = vi.fn();
 
-    const result = manageUserLinger(() => detected, exec);
+    const result = manageUserLinger(testUnitName, () => detected, exec);
 
     expect(exec).not.toHaveBeenCalled();
     expect(result.lingerEnabled).toBe(false);
@@ -155,15 +162,24 @@ describe('manageUserLinger (encrypted-home guard, issue #2680)', () => {
     expect(warnMessage).toContain('skipping');
     expect(warnMessage).toContain('loginctl enable-linger');
     expect(warnMessage).toContain('systemctl --user daemon-reload');
-    expect(warnMessage).toContain('systemctl --user start nanoclaw');
+    expect(warnMessage).toContain(
+      `systemctl --user start ${testUnitName}`,
+    );
+    // Regression guard: must NOT recommend the static `nanoclaw` unit name.
+    expect(warnMessage).not.toContain('systemctl --user start nanoclaw ');
+    expect(warnMessage).not.toMatch(/systemctl --user start nanoclaw\.$/);
     expect(warnMessage).toContain('issues/2680');
-    expect(warnData).toMatchObject({ type: 'ecryptfs' });
+    expect(warnData).toMatchObject({
+      type: 'ecryptfs',
+      unitName: testUnitName,
+    });
   });
 
   it('also skips for fscrypt and gocryptfs detections', () => {
     for (const type of ['fscrypt', 'gocryptfs'] as const) {
       const exec = vi.fn();
       const result = manageUserLinger(
+        testUnitName,
         () => ({ detected: true, type, signal: `probe:${type}` }),
         exec,
       );
@@ -176,7 +192,11 @@ describe('manageUserLinger (encrypted-home guard, issue #2680)', () => {
   it('runs loginctl enable-linger when no encrypted home is detected', () => {
     const exec = vi.fn();
 
-    const result = manageUserLinger(() => ({ detected: false }), exec);
+    const result = manageUserLinger(
+      testUnitName,
+      () => ({ detected: false }),
+      exec,
+    );
 
     expect(exec).toHaveBeenCalledTimes(1);
     expect(exec).toHaveBeenCalledWith('loginctl enable-linger');
@@ -190,7 +210,11 @@ describe('manageUserLinger (encrypted-home guard, issue #2680)', () => {
       throw new Error('loginctl not available');
     });
 
-    const result = manageUserLinger(() => ({ detected: false }), exec);
+    const result = manageUserLinger(
+      testUnitName,
+      () => ({ detected: false }),
+      exec,
+    );
 
     expect(result.lingerEnabled).toBe(false);
     expect(result.encryptedHome).toBeUndefined();
